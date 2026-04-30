@@ -1,0 +1,67 @@
+name: 利用可能な Xcode バージョンを確認
+
+on:
+  workflow_dispatch:
+    inputs:
+      macos_runner:
+        description: Select the macOS runner to inspect
+        required: true
+        default: macos-latest
+        type: choice
+        options:
+          - macos-latest
+          - macos-26
+          - macos-15
+          - macos-14
+          - macos-13
+
+permissions:
+  contents: read
+
+jobs:
+  list-xcode-versions:
+    name: Xcode バージョン一覧
+    runs-on: ${{ inputs.macos_runner }}
+
+    steps:
+      - name: ランナー情報を表示
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "ランナーラベル: ${{ inputs.macos_runner }}"
+          echo "ImageOS: ${ImageOS:-unknown}"
+          echo "ImageVersion: ${ImageVersion:-unknown}"
+          sw_vers
+
+      - name: インストール済みの Xcode を一覧表示
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+
+          xcode_apps=(/Applications/Xcode*.app)
+
+          if [ ${#xcode_apps[@]} -eq 0 ]; then
+            echo "/Applications に Xcode は見つかりませんでした。"
+            exit 1
+          fi
+
+          echo "| アプリケーション | バージョン | ビルド |"
+          echo "| --- | --- | --- |"
+
+          for xcode_app in "${xcode_apps[@]}"; do
+            developer_dir="$xcode_app/Contents/Developer"
+            version_info="$(DEVELOPER_DIR="$developer_dir" /usr/bin/xcodebuild -version)"
+            app_name="$(basename "$xcode_app")"
+            version="$(printf '%s\n' "$version_info" | awk '/^Xcode / { print $2 }')"
+            build="$(printf '%s\n' "$version_info" | awk '/^Build version / { print $3 }')"
+
+            echo "| $app_name | ${version:-unknown} | ${build:-unknown} |"
+          done
+
+      - name: 現在選択中の developer directory を表示
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "現在選択中の developer directory: $(xcode-select -p)"
+          /usr/bin/xcodebuild -version
